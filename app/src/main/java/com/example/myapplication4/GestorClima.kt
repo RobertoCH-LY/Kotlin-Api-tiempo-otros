@@ -4,35 +4,72 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Looper
 import android.util.Log
+import androidx.room.Room
+import com.example.myapplication2.AppDatabase
+import com.example.myapplication2.DatosClima
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import kotlinx.coroutines.suspendCancellableCoroutine
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.coroutines.resume
 
 class GestorClima(private val context: Context) {
 
     private val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
 
+    // Inicialización de la base de datos local (Room)
+    private val baseDatos = Room.databaseBuilder(
+        context.applicationContext,
+        AppDatabase::class.java,
+        "app_database"
+    ).fallbackToDestructiveMigration().build()
+
+    private val climaDao = baseDatos.datosClimaDao()
+
     @SuppressLint("MissingPermission")
     suspend fun obtenerClimaActual(): CurrentWeather? {
         return try {
-            // 1. Llamamos a nuestra nueva función que obliga al GPS a despertar
             val ubicacion = obtenerUbicacionFresca()
 
             if (ubicacion != null) {
                 val lat = ubicacion.latitude
                 val lon = ubicacion.longitude
 
-                Log.d("PRUEBA_ROBERTO", "NUEVAS Coordenadas detectadas -> Latitud: $lat, Longitud: $lon")
+                Log.d("PRUEBA_ROBERTO", "Coordenadas GPS -> Lat: $lat, Lon: $lon")
 
-                // 2. Pasamos las coordenadas a la API
+                // Petición a la API de Open-Meteo
                 val respuestaApi = RetrofitClient.service.obtenerClima(lat, lon)
-                respuestaApi.current
+                val climaActual = respuestaApi.current
+
+                // Guardado en SQLite (Tabla DatosClima)
+                if (climaActual != null) {
+                    val formatoFecha = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                    val horaActual = formatoFecha.format(Date())
+
+                    // Convertimos a Double (Ignora si Android Studio lo subraya en amarillo)
+                    val nuevoRegistro = DatosClima(
+                        timestamp = horaActual,
+                        latitud = lat,
+                        longitud = lon,
+                        temperatura = climaActual.temperature_2m.toDouble(),
+                        humedad = climaActual.relative_humidity_2m.toDouble()
+                    )
+
+                    climaDao.insertarDatosClima(nuevoRegistro)
+
+                    // Comprobación de integridad por consola
+                    Log.d("PRUEBA_ROBERTO", "Registro insertado en SQLite correctamente.")
+                    Log.d("PRUEBA_ROBERTO", "Historial completo: ${climaDao.obtenerDatosClima()}")
+                }
+
+                climaActual
             } else {
-                Log.d("PRUEBA_ROBERTO", "Fallo: El GPS no pudo obtener una ubicación nueva.")
+                Log.d("PRUEBA_ROBERTO", "Error: Timeout o fallo al obtener coordenadas GPS.")
                 null
             }
         } catch (e: Exception) {
@@ -42,23 +79,19 @@ class GestorClima(private val context: Context) {
     }
 
     /**
-     * Esta función enciende la antena GPS, espera a recibir exactamente 1 coordenada nueva,
-     * apaga la antena para ahorrar batería y devuelve el resultado.
+     * Fuerza el encendido del GPS con prioridad de alta precisión,
+     * captura una única coordenada fresca y apaga el sensor para ahorrar batería.
      */
     @SuppressLint("MissingPermission")
     private suspend fun obtenerUbicacionFresca(): android.location.Location? = suspendCancellableCoroutine { continuation ->
 
-        // Configuramos el GPS para máxima precisión y que solo nos devuelva 1 actualización
         val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000)
             .setMaxUpdates(1)
             .build()
 
-        // Preparamos el "receptor" que estará atento a cuando llegue la coordenada
         val locationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
                 val location = locationResult.lastLocation
-
-                // En cuanto llega, apagamos el receptor y enviamos la coordenada
                 fusedLocationClient.removeLocationUpdates(this)
                 if (continuation.isActive) {
                     continuation.resume(location)
@@ -66,7 +99,6 @@ class GestorClima(private val context: Context) {
             }
         }
 
-        // Encendemos el GPS con las reglas que hemos definido arriba
         fusedLocationClient.requestLocationUpdates(
             locationRequest,
             locationCallback,
@@ -77,7 +109,6 @@ class GestorClima(private val context: Context) {
             }
         }
 
-        // Si por algún motivo se cancela el proceso, nos aseguramos de apagar el GPS
         continuation.invokeOnCancellation {
             fusedLocationClient.removeLocationUpdates(locationCallback)
         }
