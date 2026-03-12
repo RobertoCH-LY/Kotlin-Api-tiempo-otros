@@ -1,4 +1,4 @@
-# Modulo de contexto ambiental y localizacion
+# Proyecto
 
 Este repositorio contiene el codigo para obtener la ubicacion del dispositivo y los datos del clima dentro de la aplicacion de salud. El archivo principal es la clase GestorClima.
 
