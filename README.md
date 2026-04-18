@@ -19,4 +19,4 @@ Para probar o abrir este proyecto necesitas:
 
 ### Licencia
 
-Este proyecto utiliza la licencia MIT. El codigo es libre y se puede usar, modificar o distribuir sin restricciones. Hay que tener en cuenta que la consulta de datos del clima utiliza el plan gratuito de Open-Meteo, por lo que un futuro uso comercial de la aplicacion obligaria a revisar las condiciones de dicha API externa.
+Este proyecto utiliza la licencia MIT. El código es libre y se puede usar, modificar o distribuir sin restricciones, siempre que se mantenga el aviso de copyright original.
