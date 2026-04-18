@@ -19,4 +19,4 @@ Para probar o abrir este proyecto necesitas:
 
 ### Licencia
 
-Este proyecto utiliza la licencia MIT. El código es libre y se puede usar, modificar o distribuir sin restricciones, siempre que se mantenga el aviso de copyright original.
+Este proyecto utiliza la licencia MIT. El código es libre y se puede usar, modificar o distribuir sin restricciones.
